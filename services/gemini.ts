@@ -12,6 +12,8 @@ export const generateChatResponse = async (
 
   try {
     const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+    
+    // Using the stable model
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const events = await getEvents();
@@ -19,7 +21,7 @@ export const generateChatResponse = async (
       `- ${e.title} (${e.date}) @ ${e.location}. Organized by ${e.organizerName}. ID: ${e.id}`
     ).join('\n');
 
-    const systemInstruction = `
+    const systemInstructionText = `
       You are "UMission AI", a campus assistant specifically for Universiti Malaya (UM) students.
       Your goal is to help students find volunteer opportunities on campus (Kolej Kediaman, Faculties, Rimba Ilmu, Tasik Varsiti, etc.).
       
@@ -32,13 +34,12 @@ export const generateChatResponse = async (
       3. Be encouraging and student-friendly. Use terms like "Siswa/Siswi" or "Campus Community".
     `;
 
-    // --- FIX STARTS HERE ---
+    // Prepare history:
     // 1. Remove the last item (current prompt) because chat.sendMessage(prompt) handles it.
-    // 2. Remove the first item if it is a 'model' message (the UI greeting), because API forbids history starting with model.
+    // 2. Remove the first item if it is a 'model' message (the UI greeting).
     const historyForSdk = history
-      .slice(0, -1) // Remove the last element (the current user prompt)
+      .slice(0, -1) 
       .filter((msg, index) => {
-         // If it's the very first message AND it's from the model, skip it
          if (index === 0 && msg.role === 'model') return false;
          return true;
       })
@@ -46,11 +47,14 @@ export const generateChatResponse = async (
         role: h.role === 'user' ? 'user' : 'model',
         parts: [{ text: h.text }]
       }));
-    // --- FIX ENDS HERE ---
 
     const chat = model.startChat({
       history: historyForSdk,
-      systemInstruction: systemInstruction,
+      // FIX: Explicitly format systemInstruction as a Content object
+      systemInstruction: {
+        role: 'system',
+        parts: [{ text: systemInstructionText }]
+      },
     });
 
     const result = await chat.sendMessage(prompt);
