@@ -1,8 +1,4 @@
 {
-type: uploaded file
-fileName: package.json
-fullContent:
-{
   "name": "umission---um-campus",
   "private": true,
   "version": "0.0.0",
@@ -24,5 +20,4 @@ fullContent:
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
-}
 }
