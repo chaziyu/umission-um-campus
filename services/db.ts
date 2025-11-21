@@ -1,12 +1,18 @@
-import { db } from './firebase';
+import { db, auth } from './firebase'; // Import auth
 import { 
-  collection, doc, getDocs, getDoc, addDoc, updateDoc, 
-  query, where, increment, arrayUnion, arrayRemove, 
-  Timestamp, orderBy
+  collection, doc, getDocs, getDoc, setDoc, addDoc, updateDoc, 
+  query, where, increment, arrayUnion, arrayRemove
 } from 'firebase/firestore';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  sendPasswordResetEmail 
+} from 'firebase/auth';
 import { User, Event, Registration, UserRole, Feedback, Badge } from '../types';
 
-// Keep LocalStorage for Session Management ONLY
+// Keep LocalStorage for Session Persistence (Cache)
+// This ensures your app still loads the user immediately on refresh
 const CURRENT_USER_KEY = 'um_current_user';
 
 // Collections
@@ -21,75 +27,67 @@ const mapDoc = <T>(doc: any): T => ({ id: doc.id, ...doc.data() });
 // --- Auth Services ---
 
 export const login = async (email: string, password: string): Promise<User> => {
-  const q = query(
-    collection(db, USERS_COL), 
-    where('email', '==', email), 
-    where('password', '==', password)
-  );
-  
-  const snapshot = await getDocs(q);
-  
-  if (snapshot.empty) {
-    throw new Error('Invalid Email or Password');
+  // 1. Authenticate with Firebase Auth
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  const uid = userCredential.user.uid;
+
+  // 2. Fetch User Profile from Firestore (using the Auth UID)
+  const userRef = doc(db, USERS_COL, uid);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    throw new Error('User profile not found. Please contact support.');
   }
 
-  const userDoc = snapshot.docs[0];
-  // Exclude password from session object
-  const { password: _, ...safeUser } = userDoc.data();
-  const user = { id: userDoc.id, ...safeUser } as User;
+  // 3. Construct User Object
+  const userData = userSnap.data();
+  const user = { id: uid, ...userData } as User;
 
+  // 4. Cache in LocalStorage
   localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
   return user;
 };
 
 export const register = async (name: string, email: string, password: string, role: UserRole): Promise<User> => {
-  // Check if email exists
-  const q = query(collection(db, USERS_COL), where('email', '==', email));
-  const snapshot = await getDocs(q);
-  
-  if (!snapshot.empty) {
-    throw new Error('Siswa Mail/Email already registered');
-  }
+  // 1. Create Auth Account
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  const uid = userCredential.user.uid;
 
+  // 2. Create User Profile Object
+  // Note: We don't store the password in Firestore anymore! Safe & Secure.
   const newUser = {
     name,
     email,
-    password, // Prototype: Storing password in plain text as requested
     role,
-    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&background=10b981`,
+    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`,
     bookmarks: []
   };
 
-  const docRef = await addDoc(collection(db, USERS_COL), newUser);
+  // 3. Save to Firestore using the UID as the Document ID
+  // This makes it easy to find the user later: db.collection('users').doc(uid)
+  await setDoc(doc(db, USERS_COL, uid), newUser);
   
-  // Return safe user object
-  const { password: _, ...safeData } = newUser;
-  const safeUser = { id: docRef.id, ...safeData } as User;
-  
-  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(safeUser));
-  return safeUser;
+  // 4. Return and Cache
+  const user = { id: uid, ...newUser } as User;
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+  return user;
 };
 
 export const logout = async () => {
+  await signOut(auth);
   localStorage.removeItem(CURRENT_USER_KEY);
 };
 
 export const getCurrentUser = (): User | null => {
+  // We still rely on LocalStorage for instant UI state on refresh.
+  // Ideally, you'd use onAuthStateChanged in App.tsx, but this preserves your existing architecture.
   const stored = localStorage.getItem(CURRENT_USER_KEY);
   return stored ? JSON.parse(stored) : null;
 };
 
 export const requestPasswordReset = async (email: string): Promise<void> => {
-  // Check if user exists
-  const q = query(collection(db, USERS_COL), where('email', '==', email));
-  const snapshot = await getDocs(q);
-  
-  if (snapshot.empty) {
-    throw new Error('No account found with this email address.');
-  }
-
-  console.log(`[Mock Email Service] Sending password reset link to ${email}`);
-  return;
+  await sendPasswordResetEmail(auth, email);
+  // Firebase handles the email sending automatically now.
 };
 
 export const toggleBookmark = async (userId: string, eventId: string): Promise<string[]> => {
@@ -115,7 +113,6 @@ export const toggleBookmark = async (userId: string, eventId: string): Promise<s
     newBookmarks = [...bookmarks, eventId];
   }
 
-  // Update local session if current user matches
   const currentUser = getCurrentUser();
   if (currentUser && currentUser.id === userId) {
     const updatedUser = { ...currentUser, bookmarks: newBookmarks };
@@ -128,8 +125,6 @@ export const toggleBookmark = async (userId: string, eventId: string): Promise<s
 // --- Event Services ---
 
 export const getEvents = async (): Promise<Event[]> => {
-  // Order by date? Firestore doesn't default sort.
-  // For now just fetch all.
   const snapshot = await getDocs(collection(db, EVENTS_COL));
   return snapshot.docs.map(d => mapDoc<Event>(d));
 };
@@ -177,7 +172,7 @@ export const joinEvent = async (eventId: string, userId: string): Promise<Regist
     throw new Error('You have already requested to join this event');
   }
 
-  // Check max quota based on CONFIRMED participants
+  // Check max quota
   const qConfirmed = query(
     collection(db, REGS_COL), 
     where('eventId', '==', eventId), 
@@ -197,7 +192,7 @@ export const joinEvent = async (eventId: string, userId: string): Promise<Regist
     userName: currentUser?.name || 'Volunteer',
     userAvatar: currentUser?.avatar,
     joinedAt: new Date().toISOString(),
-    status: 'pending', // Default to pending
+    status: 'pending',
     eventTitle: eventData.title,
     eventDate: eventData.date,
     eventStatus: eventData.status
@@ -224,10 +219,8 @@ export const updateRegistrationStatus = async (registrationId: string, status: '
   const eventId = regData.eventId;
   const eventRef = doc(db, EVENTS_COL, eventId);
 
-  // Update status
   await updateDoc(regRef, { status });
 
-  // Update Event Counter
   if (status === 'confirmed' && oldStatus !== 'confirmed') {
     await updateDoc(eventRef, { currentVolunteers: increment(1) });
   } else if (status === 'rejected' && oldStatus === 'confirmed') {
@@ -236,17 +229,11 @@ export const updateRegistrationStatus = async (registrationId: string, status: '
 };
 
 export const getUserRegistrations = async (userId: string): Promise<Registration[]> => {
-  // Get registrations
   const q = query(collection(db, REGS_COL), where('userId', '==', userId));
   const snapshot = await getDocs(q);
   const registrations = snapshot.docs.map(d => mapDoc<Registration>(d));
 
-  // Get feedbacks to check 'hasFeedback'
   const feedbacks = await getFeedbacks(userId);
-  
-  // We need to fetch current event status because the snapshot in Registration might be stale
-  // Optimization: Fetch all events? Or fetch individually? 
-  // For simplicity in this refactor, let's fetch all events map them.
   const events = await getEvents();
 
   return registrations.map(r => {
@@ -256,16 +243,13 @@ export const getUserRegistrations = async (userId: string): Promise<Registration
       eventStatus: event ? event.status : 'upcoming',
       hasFeedback: !!feedbacks.find(f => f.eventId === r.eventId)
     };
-  }).reverse(); // Recent first
+  }).reverse();
 };
 
 // --- Badges Services ---
 
 export const getUserBadges = async (userId: string): Promise<Badge[]> => {
-  // This logic remains client-side calculation based on fetched history
   const regs = await getUserRegistrations(userId);
-  
-  // Filter locally
   const completed = regs.filter(r => r.status === 'confirmed' && r.eventStatus === 'completed');
   
   const badges: Badge[] = [];
