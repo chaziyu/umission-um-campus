@@ -1,4 +1,8 @@
 {
+type: uploaded file
+fileName: package.json
+fullContent:
+{
   "name": "umission---um-campus",
   "private": true,
   "version": "0.0.0",
@@ -9,10 +13,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0",
+    "@google/generative-ai": "^0.21.0",
+    "firebase": "^12.6.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "firebase": "^12.6.0"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
@@ -20,4 +24,5 @@
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
+}
 }
