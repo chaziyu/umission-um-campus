@@ -1,4 +1,8 @@
-import { GoogleGenAI } from "@google/genai";
+{
+type: uploaded file
+fileName: services/gemini.ts
+fullContent:
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getEvents } from "./db";
 
 export const generateChatResponse = async (
@@ -6,15 +10,16 @@ export const generateChatResponse = async (
   history: { role: string, text: string }[]
 ): Promise<string> => {
   
-  // Use Vite's environment variable access
   if (!import.meta.env.VITE_GEMINI_API_KEY) {
-    return "Error: VITE_GEMINI_API_KEY not found. Please configure your environment.";
+    return "Error: VITE_GEMINI_API_KEY not found. Please check your .env.local file.";
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
     
-    // Fetch current events to give the AI context about the platform
+    // Using the model you confirmed exists in the documentation
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
     const events = await getEvents();
     const eventContext = events.map(e => 
       `- ${e.title} (${e.date}) @ ${e.location}. Organized by ${e.organizerName}. ID: ${e.id}`
@@ -31,26 +36,23 @@ export const generateChatResponse = async (
       1. Only recommend events from the list above if asked about "current" opportunities.
       2. If asked about locations, assume they are within the UM Campus (e.g., "DTC" = Dewan Tunku Canselor).
       3. Be encouraging and student-friendly. Use terms like "Siswa/Siswi" or "Campus Community".
-      4. If an organizer asks for help, suggest ideas relevant to university SDG goals (Green Campus, Zero Waste, Food Security).
     `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite',
-      contents: [
-        ...history.map(h => ({
-          role: h.role,
-          parts: [{ text: h.text }]
-        })),
-        { role: 'user', parts: [{ text: prompt }] }
-      ],
-      config: {
-        systemInstruction: systemInstruction,
-      }
+    const chat = model.startChat({
+      history: history.map(h => ({
+        role: h.role === 'user' ? 'user' : 'model',
+        parts: [{ text: h.text }]
+      })),
+      systemInstruction: systemInstruction,
     });
 
-    return response.text() || "I'm having trouble connecting to the campus network. Try again?";
+    const result = await chat.sendMessage(prompt);
+    const response = await result.response;
+    
+    return response.text();
   } catch (error) {
     console.error("Gemini API Error:", error);
     return "Sorry, I'm currently offline. Please check your connection.";
   }
 };
+}
