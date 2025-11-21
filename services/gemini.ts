@@ -6,12 +6,13 @@ export const generateChatResponse = async (
   history: { role: string, text: string }[]
 ): Promise<string> => {
   
-  if (!process.env.API_KEY) {
-    return "Error: API_KEY not found. Please configure your environment.";
+  // Use Vite's environment variable access
+  if (!import.meta.env.VITE_GEMINI_API_KEY) {
+    return "Error: VITE_GEMINI_API_KEY not found. Please configure your environment.";
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     
     // Fetch current events to give the AI context about the platform
     const events = await getEvents();
@@ -34,7 +35,7 @@ export const generateChatResponse = async (
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-2.5-flash-lite',
       contents: [
         ...history.map(h => ({
           role: h.role,
@@ -44,11 +45,10 @@ export const generateChatResponse = async (
       ],
       config: {
         systemInstruction: systemInstruction,
-        thinkingConfig: { thinkingBudget: 32768 } 
       }
     });
 
-    return response.text || "I'm having trouble connecting to the campus network. Try again?";
+    return response.text() || "I'm having trouble connecting to the campus network. Try again?";
   } catch (error) {
     console.error("Gemini API Error:", error);
     return "Sorry, I'm currently offline. Please check your connection.";
