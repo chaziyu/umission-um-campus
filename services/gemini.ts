@@ -12,8 +12,6 @@ export const generateChatResponse = async (
 
   try {
     const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-    
-    // Using the stable model
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const events = await getEvents();
@@ -34,11 +32,24 @@ export const generateChatResponse = async (
       3. Be encouraging and student-friendly. Use terms like "Siswa/Siswi" or "Campus Community".
     `;
 
-    const chat = model.startChat({
-      history: history.map(h => ({
+    // --- FIX STARTS HERE ---
+    // 1. Remove the last item (current prompt) because chat.sendMessage(prompt) handles it.
+    // 2. Remove the first item if it is a 'model' message (the UI greeting), because API forbids history starting with model.
+    const historyForSdk = history
+      .slice(0, -1) // Remove the last element (the current user prompt)
+      .filter((msg, index) => {
+         // If it's the very first message AND it's from the model, skip it
+         if (index === 0 && msg.role === 'model') return false;
+         return true;
+      })
+      .map(h => ({
         role: h.role === 'user' ? 'user' : 'model',
         parts: [{ text: h.text }]
-      })),
+      }));
+    // --- FIX ENDS HERE ---
+
+    const chat = model.startChat({
+      history: historyForSdk,
       systemInstruction: systemInstruction,
     });
 
@@ -48,6 +59,6 @@ export const generateChatResponse = async (
     return response.text();
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Sorry, I'm currently offline. Please check your connection.";
+    return "Sorry, I'm having trouble connecting to the campus network right now.";
   }
 };
