@@ -1,7 +1,3 @@
-{
-type: uploaded file
-fileName: services/gemini.ts
-fullContent:
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getEvents } from "./db";
 
@@ -17,8 +13,8 @@ export const generateChatResponse = async (
   try {
     const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
     
-    // Using the model you confirmed exists in the documentation
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    // Using the stable model
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const events = await getEvents();
     const eventContext = events.map(e => 
@@ -55,4 +51,3 @@ export const generateChatResponse = async (
     return "Sorry, I'm currently offline. Please check your connection.";
   }
 };
-}
