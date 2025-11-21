@@ -5,7 +5,8 @@ import { ChatMessage } from '../types';
 export const AIChat: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'model', text: 'Hi! I am VolunBot. I can help you find events or plan volunteer activities. How can I help?' }
+    // CHANGE 1: Update the greeting message name
+    { role: 'model', text: 'Hi! I am UMission AI. I can help you find events or plan volunteer activities. How can I help?' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -71,7 +72,8 @@ export const AIChat: React.FC = () => {
             <div className="flex items-center space-x-3">
                 <div className="h-2.5 w-2.5 bg-green-300 rounded-full animate-pulse shadow-[0_0_8px_rgba(134,239,172,0.8)]"></div>
                 <div>
-                    <h3 className="text-white font-bold text-sm leading-none">VolunBot AI</h3>
+                    {/* CHANGE 2: Update the Header Title */}
+                    <h3 className="text-white font-bold text-sm leading-none">UMission AI</h3>
                     <p className="text-primary-200 text-[10px] mt-0.5">Online • Campus Assistant</p>
                 </div>
             </div>
