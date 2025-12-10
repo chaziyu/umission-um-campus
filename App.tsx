@@ -57,8 +57,6 @@ const App: React.FC = () => {
       <main>
         {renderPage()}
       </main>
-
-      <AIChat />
       
       {/* Privacy Policy Modal */}
       {showPrivacy && (
