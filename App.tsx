@@ -4,7 +4,6 @@ import { EventFeed } from './pages/EventFeed';
 import { AuthPage } from './pages/AuthPage';
 import { OrganizerDashboard } from './pages/OrganizerDashboard';
 import { VolunteerDashboard } from './pages/VolunteerDashboard';
-import { AIChat } from './components/AIChat';
 import { getCurrentUser, logout } from './services/db';
 import { User, UserRole } from './types';
 
